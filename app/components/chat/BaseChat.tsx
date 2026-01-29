@@ -32,6 +32,7 @@ const EXAMPLE_PROMPTS = [
   { text: 'Build a simple blog using Astro' },
   { text: 'Create a cookie consent form using Material UI' },
   { text: 'Make a space invaders game' },
+  { text: 'Run my code, capture errors, and propose fixes with full stack traces' },
   { text: 'How do I center a div?' },
 ];
 
