@@ -2,7 +2,7 @@ import { useStore } from '@nanostores/react';
 import type { Message } from 'ai';
 import { useChat } from 'ai/react';
 import { useAnimate } from 'framer-motion';
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { cssTransition, toast, ToastContainer } from 'react-toastify';
 import { useMessageParser, usePromptEnhancer, useShortcuts, useSnapScroll } from '~/lib/hooks';
 import { useChatHistory } from '~/lib/persistence';
@@ -12,6 +12,7 @@ import { fileModificationsToHTML } from '~/utils/diff';
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
 import { BaseChat } from './BaseChat';
+import type { UsageAnalyticsData } from './UsageAnalytics';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -72,6 +73,7 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
   const [chatStarted, setChatStarted] = useState(initialMessages.length > 0);
 
   const { showChat } = useStore(chatStore);
+  const previews = useStore(workbenchStore.previews);
 
   const [animationScope, animate] = useAnimate();
 
@@ -198,6 +200,46 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
 
   const [messageRef, scrollRef] = useSnapScroll();
 
+  const usageAnalytics = useMemo<UsageAnalyticsData>(() => {
+    let successfulPrompts = 0;
+    let totalPrompts = 0;
+
+    for (let i = 0; i < messages.length; i++) {
+      if (messages[i].role !== 'user') {
+        continue;
+      }
+
+      totalPrompts += 1;
+
+      const nextAssistant = messages
+        .slice(i + 1)
+        .find((message) => message.role === 'assistant' && message.content.trim().length > 0);
+
+      if (nextAssistant) {
+        successfulPrompts += 1;
+      }
+    }
+
+    const promptSuccessRate = totalPrompts > 0 ? Math.round((successfulPrompts / totalPrompts) * 100) : 0;
+
+    const readyPreview = previews.find((preview) => preview.ready);
+    const deploymentHealth = readyPreview ? 'Healthy' : previews.length > 0 ? 'Starting' : 'Not deployed';
+    const deploymentDetail = readyPreview
+      ? `Running on port ${readyPreview.port}`
+      : previews.length > 0
+        ? 'Preview starting up'
+        : 'No deployment detected';
+
+    return {
+      promptSuccessRate,
+      iterationCount: totalPrompts,
+      totalPrompts,
+      successfulPrompts,
+      deploymentHealth,
+      deploymentDetail,
+    };
+  }, [messages, previews]);
+
   return (
     <BaseChat
       ref={animationScope}
@@ -208,6 +250,7 @@ export const ChatImpl = memo(({ initialMessages, storeMessageHistory }: ChatProp
       isStreaming={isLoading}
       enhancingPrompt={enhancingPrompt}
       promptEnhanced={promptEnhanced}
+      usageAnalytics={usageAnalytics}
       sendMessage={sendMessage}
       messageRef={messageRef}
       scrollRef={scrollRef}
