@@ -58,7 +58,7 @@ export function useChatHistory() {
           toast.error(error.message);
         });
     }
-  }, []);
+  }, [mixedId, navigate]);
 
   return {
     ready: !mixedId || ready,
@@ -69,29 +69,35 @@ export function useChatHistory() {
       }
 
       const { firstArtifact } = workbenchStore;
+      let resolvedUrlId = urlId;
 
-      if (!urlId && firstArtifact?.id) {
-        const urlId = await getUrlId(db, firstArtifact.id);
+      if (!resolvedUrlId && firstArtifact?.id) {
+        resolvedUrlId = await getUrlId(db, firstArtifact.id);
 
-        navigateChat(urlId);
-        setUrlId(urlId);
+        navigateChat(resolvedUrlId);
+        setUrlId(resolvedUrlId);
       }
 
-      if (!description.get() && firstArtifact?.title) {
-        description.set(firstArtifact?.title);
+      let currentDescription = description.get();
+
+      if (!currentDescription && firstArtifact?.title) {
+        currentDescription = firstArtifact.title;
+        description.set(currentDescription);
       }
 
-      if (initialMessages.length === 0 && !chatId.get()) {
-        const nextId = await getNextId(db);
+      let currentChatId = chatId.get();
 
-        chatId.set(nextId);
+      if (!currentChatId) {
+        currentChatId = await getNextId(db);
 
-        if (!urlId) {
-          navigateChat(nextId);
+        chatId.set(currentChatId);
+
+        if (!resolvedUrlId) {
+          navigateChat(currentChatId);
         }
       }
 
-      await setMessages(db, chatId.get() as string, messages, urlId, description.get());
+      await setMessages(db, currentChatId as string, messages, resolvedUrlId, currentDescription);
     },
   };
 }
